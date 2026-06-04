@@ -36,6 +36,24 @@ class AuthorResponse(BaseModel):
         from_attributes = True
 
 
+class ReplyResponse(BaseModel):
+    id: int
+    content: str
+
+    author: AuthorResponse
+
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ReplyCreate(BaseModel):
+    content: str
+
+class ReplyDetailResponse(ReplyResponse):
+    replies: list[ReplyResponse]
+
 class CommentResponse(BaseModel):
     id: int
     content: str
@@ -47,8 +65,11 @@ class CommentResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class CommentDetailResponse(CommentResponse):    
+class CommentDetailResponse(CommentResponse):
+    replies: list["ReplyResponse"] = []
     likes_count: int = 0
+
+
 
 class PostResponse(BaseModel):
     id: int

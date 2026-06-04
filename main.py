@@ -174,8 +174,8 @@ def get_posts(db: Session = Depends(get_db)):
             "owner_id": post.owner_id,
 
             "author": {
-                "id": post.owner.id,
-                "username": post.owner.username
+                "id": post.author.id,
+                "username": post.author.username
             },
 
             "created_at": post.created_at,
@@ -217,13 +217,18 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
             "owner_id": comment.owner_id,
 
             "author": {
-                "id": comment.owner.id,
-                "username": comment.owner.username
+                "id": comment.author.id,
+                "username": comment.author.username
             },
 
             "created_at": comment.created_at,
             "updated_at": comment.updated_at
-        })    
+        })
+
+    top_comments = [
+        c for c in post.comments
+        if c.parent_id is None
+    ]
 
     return {
         "id": post.id,
@@ -231,11 +236,11 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
         "content": post.content,
         "owner_id": post.owner_id,
         "author": {
-            "id": post.owner.id,
-            "username": post.owner.username,
+            "id": post.author.id,
+            "username": post.author.username,
         },
         "likes_count": len(post.likes),
-        "comments": comments,
+        "comments": top_comments,
         "created_at": post.created_at,
         "updated_at": post.updated_at
     }
@@ -589,27 +594,33 @@ def create_comment(
 def get_comments(post_id: int, db: Session = Depends(get_db)):
 
     comments = db.query(models.Comment)\
-        .filter(models.Comment.post_id == post_id)\
+        .filter(
+            models.Comment.post_id == post_id,
+            models.Comment.parent_id == None
+        )\
         .all()
 
-    result = []
+    return comments
 
-    for comment in comments:
-        result.append({
-            "id": comment.id,
-            "content": comment.content,
-            "owner_id": comment.owner_id,
 
-            "author": {
-                "id": comment.owner.id,
-                "username": comment.owner.username
-            },
 
-            "created_at": comment.created_at,
-            "updated_at": comment.updated_at
-        })
-
-    return result
+# 댓글 상세 조회
+@app.get(
+    "/posts/{post_id}/comments",
+    response_model=list[schemas.CommentResponse]
+)
+def get_comments(
+    post_id: int,
+    db: Session = Depends(get_db)
+):
+    comments = db.query(models.Comment)\
+        .filter(
+            models.Comment.post_id == post_id,
+            models.Comment.parent_id == None
+        )\
+        .all()
+    
+    return comments
 
 # 댓글 수정
 @app.put(
@@ -734,3 +745,61 @@ def unlike_comment(
     return {
         "message": "좋아요 취소"
     }
+
+# 대댓글 작성 API
+@app.post(
+    "/comments/{comment_id}/replies",
+    response_model=schemas.CommentResponse
+)
+def create_reply(
+    comment_id: int,
+    reply: schemas.ReplyCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    parent_comment = db.query(models.Comment)\
+        .filter(models.Comment.id == comment_id)\
+        .first()
+    
+    if parent_comment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="댓글 없음"
+        )
+
+    new_reply = models.Comment(
+        content=reply.content,
+        post_id=parent_comment.post_id,
+        owner_id=current_user.id,
+        parent_id=parent_comment.id
+    )
+
+    db.add(new_reply)
+    db.commit()
+    db.refresh(new_reply)
+
+    return {
+        "id": new_reply.id,
+        "content": new_reply.content,
+        "owner_id": new_reply.owner_id,
+        "author": {
+            "id": current_user.id,
+            "username": current_user.username
+        },
+        "likes_count": 0,
+        "created_at": new_reply.created_at,
+        "updated_at": new_reply.updated_at
+    }
+
+# 대댓글 목록 조회 - 댓글 조회 시 대댓글도 같이 조회, 게시판 조회 시 댓글과 대댓글 같이 조회
+
+
+# 대댓글 상세 조회 
+
+
+# 대댓글 수정
+
+# 대댓글 삭제
+
+# 대댓글 좋아요
+

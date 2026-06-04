@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from database import Base
 from datetime import datetime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 
 class Post(Base):
@@ -15,7 +15,7 @@ class Post(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    owner = relationship("User", back_populates="posts")
+    author = relationship("User", back_populates="posts")
     likes = relationship("Like", back_populates="post")
 
     comments = relationship(
@@ -38,12 +38,12 @@ class User(Base):
 
     posts = relationship(
         "Post",
-        back_populates="owner"
+        back_populates="author"
     )
 
     comments = relationship(
         "Comment",
-        back_populates="owner"
+        back_populates="author"
     )
 
     comment_likes = relationship(
@@ -82,12 +82,24 @@ class Comment(Base):
     post_id = Column(Integer, ForeignKey("posts.id"))
     owner_id = Column(Integer, ForeignKey("users.id"))
     post = relationship("Post", back_populates="comments")
-    owner = relationship("User")
+    author = relationship("User", back_populates="comments")
 
     comment_likes = relationship(
         "CommentLike",
         back_populates="comment",
         cascade="all, delete"
+    )
+
+    parent_id = Column(
+        Integer,
+        ForeignKey("comments.id"),
+        nullable=True
+    )
+
+    parent = relationship(
+        "Comment",
+        remote_side=[id],
+        backref="replies"
     )
 
 class CommentLike(Base):
